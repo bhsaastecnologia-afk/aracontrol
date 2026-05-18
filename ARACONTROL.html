@@ -1,0 +1,1915 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ARACONTROL – Controle de Estoque Industrial</title>
+
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<!-- SheetJS (Excel) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet"/>
+
+<style>
+:root{
+  --bg-base:#03080f;
+  --bg-panel:#060f1c;
+  --bg-card:#0b1829;
+  --bg-card2:#0e1f33;
+  --border:#1a3050;
+  --border-glow:#1e3a5f;
+  --accent:#06b6d4;
+  --accent-dark:#0891b2;
+  --accent2:#3a6fa8;
+  --text-primary:#e8f0fb;
+  --text-secondary:#7a9bc0;
+  --text-muted:#3d5a7a;
+  --success:#10b981;
+  --danger:#ef4444;
+  --warning:#f59e0b;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Barlow',sans-serif;background:var(--bg-base);color:var(--text-primary);overflow:hidden}
+body{display:flex}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg-base)}
+::-webkit-scrollbar-thumb{background:var(--border-glow);border-radius:2px}
+
+/* ─── SIDEBAR ─── */
+#sidebar{
+  width:240px;flex-shrink:0;
+  background:var(--bg-panel);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  transition:width .25s cubic-bezier(.4,0,.2,1);
+  position:relative;z-index:20;
+  overflow:hidden;
+}
+#sidebar.collapsed{width:60px}
+#sidebar.collapsed .nav-label,
+#sidebar.collapsed .nav-group-label,
+#sidebar.collapsed #logo-sub,
+#sidebar.collapsed #logo-name{display:none}
+#sidebar.collapsed .nav-link{justify-content:center;padding:10px 0}
+#sidebar.collapsed .nav-link svg{margin:0}
+
+/* Logo */
+#logo-area{
+  padding:20px 18px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;
+  min-height:68px;flex-shrink:0;
+}
+.logo-icon{
+  width:36px;height:36px;flex-shrink:0;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-dark));
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 20px rgba(6,182,212,.35);
+}
+#logo-name{font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;font-weight:800;color:#fff;letter-spacing:.14em;line-height:1}
+#logo-sub{font-size:.6rem;color:var(--text-muted);letter-spacing:.12em;font-weight:600;text-transform:uppercase;margin-top:3px}
+
+/* Nav */
+.nav-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:8px 0}
+.nav-group-label{font-size:.58rem;font-weight:700;color:var(--text-muted);letter-spacing:.14em;text-transform:uppercase;padding:12px 18px 4px}
+.nav-link{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 14px 9px 16px;margin:1px 8px;
+  border-radius:7px;cursor:pointer;
+  color:var(--text-secondary);font-size:.82rem;font-weight:500;
+  transition:all .18s;white-space:nowrap;
+  border:1px solid transparent;
+}
+.nav-link:hover{background:var(--bg-card);color:var(--text-primary);border-color:var(--border)}
+.nav-link.active{
+  background:linear-gradient(90deg,rgba(6,182,212,.15),rgba(6,182,212,.05));
+  color:var(--accent);
+  border-color:rgba(6,182,212,.3);
+  box-shadow:inset 3px 0 0 var(--accent);
+}
+.nav-link svg{width:16px;height:16px;flex-shrink:0;opacity:.8}
+.nav-link.active svg{opacity:1}
+.nav-divider{height:1px;background:var(--border);margin:6px 12px}
+
+/* Sidebar footer */
+#sidebar-footer{padding:12px 8px;border-top:1px solid var(--border);flex-shrink:0}
+.collapse-btn{
+  width:100%;padding:8px;border-radius:7px;
+  background:transparent;border:1px solid var(--border);
+  color:var(--text-muted);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .18s;
+}
+.collapse-btn:hover{background:var(--bg-card);color:var(--text-secondary)}
+
+/* ─── MAIN ─── */
+#main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+
+/* Topbar */
+#topbar{
+  height:64px;flex-shrink:0;
+  background:var(--bg-panel);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;
+  position:relative;
+}
+#topbar::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:.3;
+}
+.topbar-title{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;color:#fff;letter-spacing:.08em;text-transform:uppercase}
+.status-pill{
+  display:flex;align-items:center;gap:7px;
+  padding:5px 12px;border-radius:20px;
+  background:var(--bg-card);border:1px solid var(--border);
+  font-size:.72rem;color:var(--text-secondary);
+}
+.dot-live{width:6px;height:6px;border-radius:50%;background:#10b981;animation:livePulse 2s infinite}
+@keyframes livePulse{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}50%{box-shadow:0 0 0 4px rgba(16,185,129,0)}}
+
+/* Content */
+#content{flex:1;overflow-y:auto;overflow-x:hidden;padding:24px 28px}
+
+/* ─── SECTIONS ─── */
+.section{display:none;animation:fadeUp .25s ease}
+.section.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* Page header */
+.page-header{margin-bottom:24px}
+.page-title{font-family:'Barlow Condensed',sans-serif;font-size:1.7rem;font-weight:800;color:#fff;letter-spacing:.05em;line-height:1;text-transform:uppercase}
+.page-subtitle{font-size:.78rem;color:var(--text-muted);margin-top:5px;font-weight:400}
+
+/* ─── KPI CARDS ─── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.kpi{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:12px;padding:20px;
+  position:relative;overflow:hidden;
+  transition:border-color .2s,transform .2s;
+}
+.kpi:hover{border-color:var(--accent);transform:translateY(-2px)}
+.kpi::before{
+  content:'';position:absolute;top:0;right:0;
+  width:80px;height:80px;border-radius:50%;
+  transform:translate(30px,-30px);
+  opacity:.06;
+}
+.kpi-label{font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px}
+.kpi-value{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:800;line-height:1;color:#fff}
+.kpi-sub{font-size:.7rem;color:var(--text-muted);margin-top:6px}
+.kpi-accent-line{position:absolute;bottom:0;left:0;right:0;height:2px}
+
+/* ─── CARDS ─── */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px}
+.card-title{font-size:.68rem;font-weight:700;color:var(--accent);letter-spacing:.12em;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:6px}
+.card-title::before{content:'';display:inline-block;width:3px;height:12px;background:var(--accent);border-radius:2px}
+
+/* ─── TABLE ─── */
+.tbl-wrap{border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+table.dtbl{width:100%;border-collapse:collapse}
+table.dtbl thead tr{background:var(--bg-panel)}
+table.dtbl th{
+  padding:10px 14px;font-size:.62rem;font-weight:700;
+  color:var(--text-muted);text-transform:uppercase;letter-spacing:.1em;
+  text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;
+}
+table.dtbl td{
+  padding:11px 14px;font-size:.8rem;color:var(--text-secondary);
+  border-bottom:1px solid rgba(26,48,80,.5);
+  vertical-align:middle;
+}
+table.dtbl tr:last-child td{border-bottom:none}
+table.dtbl tbody tr{transition:background .12s}
+table.dtbl tbody tr:hover td{background:var(--bg-card2);color:var(--text-primary)}
+.empty-row td{text-align:center;padding:40px!important;color:var(--text-muted)!important;font-size:.82rem}
+
+/* ─── BADGES ─── */
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.badge-ok{background:rgba(16,185,129,.12);color:#34d399;border:1px solid rgba(16,185,129,.25)}
+.badge-low{background:rgba(245,158,11,.1);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
+.badge-zero{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.25)}
+.badge-blue{background:rgba(6,182,212,.1);color:var(--accent);border:1px solid rgba(6,182,212,.25)}
+.badge-in{background:rgba(16,185,129,.1);color:#34d399;border:1px solid rgba(16,185,129,.2)}
+.badge-out{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2)}
+.badge-gray{background:rgba(100,116,139,.1);color:#94a3b8;border:1px solid rgba(100,116,139,.2)}
+.badge-ativa{background:rgba(16,185,129,.1);color:#34d399;border:1px solid rgba(16,185,129,.2)}
+.badge-pausada{background:rgba(245,158,11,.1);color:#fbbf24;border:1px solid rgba(245,158,11,.2)}
+.badge-concluida{background:rgba(6,182,212,.1);color:var(--accent);border:1px solid rgba(6,182,212,.2)}
+
+/* ─── BUTTONS ─── */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 18px;border-radius:8px;font-size:.8rem;font-weight:600;
+  cursor:pointer;border:none;font-family:'Barlow',sans-serif;
+  transition:all .18s;letter-spacing:.02em;white-space:nowrap;
+}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;box-shadow:0 4px 14px rgba(6,182,212,.25)}
+.btn-primary:hover{filter:brightness(1.1);box-shadow:0 6px 20px rgba(6,182,212,.4);transform:translateY(-1px)}
+.btn-success{background:linear-gradient(135deg,#10b981,#059669);color:#fff;box-shadow:0 4px 14px rgba(16,185,129,.2)}
+.btn-success:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.btn-danger{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 4px 14px rgba(239,68,68,.2)}
+.btn-danger:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--text-secondary);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg-card2);color:var(--text-primary);border-color:var(--border-glow)}
+.btn-sm{padding:5px 12px;font-size:.73rem}
+.btn-xs{padding:4px 9px;font-size:.68rem}
+.icon-btn{
+  width:30px;height:30px;border-radius:7px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--bg-card2);border:1px solid var(--border);
+  color:var(--text-muted);cursor:pointer;transition:all .15s;flex-shrink:0;
+}
+.icon-btn:hover{background:var(--border-glow);color:var(--text-primary);border-color:var(--accent2)}
+.icon-btn.e:hover{background:rgba(16,185,129,.15);color:#34d399;border-color:rgba(16,185,129,.3)}
+.icon-btn.d:hover{background:rgba(239,68,68,.15);color:#f87171;border-color:rgba(239,68,68,.3)}
+
+/* ─── FORM ─── */
+.form-grid{display:grid;gap:14px}
+.form-grid-2{grid-template-columns:1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-label{font-size:.65rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.1em}
+.form-input{
+  background:var(--bg-base);
+  border:1px solid var(--border);
+  border-radius:8px;padding:9px 12px;
+  color:var(--text-primary);font-size:.82rem;
+  font-family:'Barlow',sans-serif;outline:none;
+  transition:border-color .15s,box-shadow .15s;width:100%;
+}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(6,182,212,.12)}
+.form-input option{background:var(--bg-panel)}
+textarea.form-input{resize:vertical;min-height:70px}
+.form-note{font-size:.7rem;color:var(--accent);margin-top:4px}
+
+/* ─── MODAL ─── */
+.modal-bg{
+  display:none;position:fixed;inset:0;
+  background:rgba(3,8,15,.88);
+  z-index:500;align-items:center;justify-content:center;
+  backdrop-filter:blur(6px);
+}
+.modal-bg.open{display:flex}
+.modal{
+  background:var(--bg-panel);
+  border:1px solid var(--border-glow);
+  border-radius:16px;padding:28px;
+  max-height:92vh;overflow-y:auto;
+  box-shadow:0 25px 60px rgba(0,0,0,.6),0 0 0 1px rgba(6,182,212,.06);
+  animation:modalIn .2s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes modalIn{from{opacity:0;transform:scale(.94) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.modal-title{font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:700;color:#fff;letter-spacing:.06em;text-transform:uppercase}
+.modal-close{
+  width:28px;height:28px;border-radius:6px;
+  background:var(--bg-card2);border:1px solid var(--border);
+  color:var(--text-muted);cursor:pointer;font-size:.9rem;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.modal-close:hover{background:rgba(239,68,68,.15);color:#f87171;border-color:rgba(239,68,68,.3)}
+.modal-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}
+
+/* ─── TOAST ─── */
+#toast-wrap{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 16px;border-radius:10px;
+  font-size:.8rem;font-weight:500;
+  min-width:250px;max-width:340px;
+  backdrop-filter:blur(12px);
+  animation:toastSlide .3s cubic-bezier(.34,1.56,.64,1);
+  pointer-events:all;
+  border:1px solid;
+}
+@keyframes toastSlide{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+.toast-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0}
+.toast.success{background:rgba(6,18,28,.95);border-color:rgba(16,185,129,.35);color:#a7f3d0}
+.toast.success .toast-icon{background:rgba(16,185,129,.2);color:#34d399}
+.toast.error{background:rgba(6,18,28,.95);border-color:rgba(239,68,68,.35);color:#fca5a5}
+.toast.error .toast-icon{background:rgba(239,68,68,.2);color:#f87171}
+.toast.warning{background:rgba(6,18,28,.95);border-color:rgba(245,158,11,.35);color:#fde68a}
+.toast.warning .toast-icon{background:rgba(245,158,11,.2);color:#fbbf24}
+.toast.info{background:rgba(6,18,28,.95);border-color:rgba(6,182,212,.35);color:#a5f3fc}
+.toast.info .toast-icon{background:rgba(6,182,212,.2);color:var(--accent)}
+
+/* ─── CONFIRM ─── */
+#confirm-bg{display:none;position:fixed;inset:0;background:rgba(3,8,15,.9);z-index:800;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+#confirm-bg.open{display:flex}
+.confirm-box{background:var(--bg-panel);border:1px solid var(--border-glow);border-radius:14px;padding:28px;max-width:380px;width:90%;box-shadow:0 20px 50px rgba(0,0,0,.5);animation:modalIn .2s ease}
+
+/* ─── ALERT ITEMS ─── */
+.alert-card{border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px;border:1px solid}
+.alert-critical{background:rgba(239,68,68,.07);border-color:rgba(239,68,68,.25)}
+.alert-warning{background:rgba(245,158,11,.07);border-color:rgba(245,158,11,.25)}
+
+/* ─── CHART CARDS ─── */
+.chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px}
+
+/* ─── REPORT CARDS ─── */
+.report-card{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;
+  cursor:pointer;transition:all .2s;
+}
+.report-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 12px 30px rgba(0,0,0,.3)}
+.report-icon{font-size:2rem;margin-bottom:12px}
+.report-title{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;color:#fff;letter-spacing:.04em;margin-bottom:4px}
+.report-desc{font-size:.73rem;color:var(--text-muted);margin-bottom:16px}
+
+/* ─── SEARCH BAR ─── */
+.search-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.search-bar .form-input{max-width:220px}
+
+/* ─── DANGER ZONE ─── */
+.danger-zone{background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.2);border-radius:12px;padding:20px}
+.danger-title{font-size:.72rem;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
+
+/* ─── SCROLL IN CONTENT ─── */
+#content .overflow-hidden{overflow:hidden}
+.tbl-scroll{overflow-x:auto}
+
+/* ─── GRID HELPERS ─── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px}
+
+/* ─── SEPARATOR ─── */
+.sep{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:20px 0}
+
+/* ─── STAT PILL ─── */
+.stat-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--bg-card2);border:1px solid var(--border);font-size:.72rem;color:var(--text-secondary)}
+
+/* ─── GLOW LINE ─── */
+.glow-line{height:1px;background:linear-gradient(90deg,var(--accent),transparent);margin-bottom:20px;opacity:.4}
+
+@media(max-width:900px){
+  .kpi-grid{grid-template-columns:1fr 1fr}
+  .grid-4{grid-template-columns:1fr 1fr}
+  #sidebar{position:fixed;height:100%;transform:translateX(-100%);transition:transform .25s}
+  #sidebar.mobile-open{transform:translateX(0)}
+  #main{margin-left:0!important}
+}
+@media(max-width:600px){
+  .kpi-grid{grid-template-columns:1fr}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+  #content{padding:16px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<nav id="sidebar">
+  <!-- Logo -->
+  <div id="logo-area">
+    <div class="logo-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+        <line x1="12" y1="22.08" x2="12" y2="12"/>
+      </svg>
+    </div>
+    <div>
+      <div id="logo-name">ARACONTROL</div>
+      <div id="logo-sub">Sistema Industrial</div>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <div class="nav-scroll">
+    <div class="nav-group-label">Visão Geral</div>
+    <div class="nav-link active" data-section="dashboard" onclick="nav('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span class="nav-label">Dashboard</span>
+    </div>
+    <div class="nav-link" data-section="alerts" onclick="nav('alerts')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+      <span class="nav-label">Alertas &nbsp;<span id="alert-badge" style="display:none;background:var(--danger);color:#fff;border-radius:20px;padding:1px 7px;font-size:.58rem;font-weight:700"></span></span>
+    </div>
+
+    <div class="nav-divider"></div>
+    <div class="nav-group-label">Estoque</div>
+    <div class="nav-link" data-section="products" onclick="nav('products')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      <span class="nav-label">Produtos</span>
+    </div>
+    <div class="nav-link" data-section="entries" onclick="nav('entries')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      <span class="nav-label">Entradas</span>
+    </div>
+    <div class="nav-link" data-section="exits" onclick="nav('exits')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/></svg>
+      <span class="nav-label">Saídas</span>
+    </div>
+    <div class="nav-link" data-section="history" onclick="nav('history')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span class="nav-label">Histórico</span>
+    </div>
+
+    <div class="nav-divider"></div>
+    <div class="nav-group-label">Cadastros</div>
+    <div class="nav-link" data-section="obras" onclick="nav('obras')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+      <span class="nav-label">Obras</span>
+    </div>
+    <div class="nav-link" data-section="colab" onclick="nav('colab')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      <span class="nav-label">Colaboradores</span>
+    </div>
+
+    <div class="nav-divider"></div>
+    <div class="nav-group-label">Relatórios</div>
+    <div class="nav-link" data-section="reports" onclick="nav('reports')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <span class="nav-label">PDF & Excel</span>
+    </div>
+    <div class="nav-link" data-section="export" onclick="nav('export')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      <span class="nav-label">Exportar / Importar</span>
+    </div>
+  </div>
+
+  <div id="sidebar-footer">
+    <button class="collapse-btn" onclick="toggleSidebar()" title="Recolher menu">
+      <svg id="collapse-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+    </button>
+  </div>
+</nav>
+
+<!-- ═══ MAIN ═══ -->
+<div id="main">
+
+  <!-- Topbar -->
+  <div id="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="icon-btn" onclick="toggleMobile()" style="display:none" id="mob-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div class="topbar-title" id="topbar-title">Dashboard</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="font-size:.7rem;color:var(--text-muted)" id="topbar-clock"></div>
+      <div class="status-pill"><div class="dot-live"></div><span>Armazenamento Local Ativo</span></div>
+    </div>
+  </div>
+
+  <!-- Conteúdo -->
+  <div id="content">
+
+    <!-- ══════ DASHBOARD ══════ -->
+    <div id="s-dashboard" class="section active">
+      <div class="page-header">
+        <div class="page-title">Dashboard</div>
+        <div class="page-subtitle">Visão geral do estoque em tempo real</div>
+      </div>
+      <!-- KPIs -->
+      <div class="kpi-grid">
+        <div class="kpi" style="--kc:var(--accent)">
+          <div class="kpi-label" style="color:var(--accent)">Total de Produtos</div>
+          <div class="kpi-value" id="k-total">0</div>
+          <div class="kpi-sub">Itens cadastrados</div>
+          <div class="kpi-accent-line" style="background:linear-gradient(90deg,var(--accent),transparent)"></div>
+          <div class="kpi::before" style="background:var(--accent)"></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label" style="color:var(--warning)">Estoque Baixo</div>
+          <div class="kpi-value" id="k-low" style="color:var(--warning)">0</div>
+          <div class="kpi-sub">Abaixo do mínimo</div>
+          <div class="kpi-accent-line" style="background:linear-gradient(90deg,var(--warning),transparent)"></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label" style="color:var(--danger)">Zerados</div>
+          <div class="kpi-value" id="k-zero" style="color:var(--danger)">0</div>
+          <div class="kpi-sub">Sem estoque</div>
+          <div class="kpi-accent-line" style="background:linear-gradient(90deg,var(--danger),transparent)"></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label" style="color:var(--success)">Movimentações</div>
+          <div class="kpi-value" id="k-mov" style="color:var(--success)">0</div>
+          <div class="kpi-sub">Total histórico</div>
+          <div class="kpi-accent-line" style="background:linear-gradient(90deg,var(--success),transparent)"></div>
+        </div>
+      </div>
+
+      <!-- Charts row 1 -->
+      <div class="grid-2" style="margin-bottom:16px">
+        <div class="chart-card">
+          <div class="card-title">Entradas × Saídas — 30 dias</div>
+          <canvas id="ch-io" height="150"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="card-title">Consumo por Obra</div>
+          <canvas id="ch-obra" height="150"></canvas>
+        </div>
+      </div>
+      <!-- Charts row 2 -->
+      <div class="grid-2">
+        <div class="chart-card">
+          <div class="card-title">Produtos Mais Retirados</div>
+          <canvas id="ch-top" height="190"></canvas>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">Últimas Entradas</div>
+            <div id="dash-in" style="font-size:.78rem"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Últimas Saídas</div>
+            <div id="dash-out" style="font-size:.78rem"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ ALERTAS ══════ -->
+    <div id="s-alerts" class="section">
+      <div class="page-header">
+        <div class="page-title">Alertas de Estoque</div>
+        <div class="page-subtitle">Produtos que requerem atenção imediata</div>
+      </div>
+      <div id="alerts-body"></div>
+    </div>
+
+    <!-- ══════ PRODUTOS ══════ -->
+    <div id="s-products" class="section">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="page-title">Produtos</div>
+          <div class="page-subtitle">Cadastro e gestão de itens do almoxarifado</div>
+        </div>
+        <button class="btn btn-primary" onclick="openProdModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Novo Produto
+        </button>
+      </div>
+      <div class="search-bar">
+        <input id="p-search" class="form-input" style="max-width:230px" placeholder="🔍  Buscar produto..."/>
+        <select id="p-cat" class="form-input" style="max-width:180px" onchange="renderProds()">
+          <option value="">Todas as categorias</option>
+        </select>
+        <select id="p-status" class="form-input" style="max-width:160px" onchange="renderProds()">
+          <option value="">Todos os status</option>
+          <option value="ok">Normal</option>
+          <option value="low">Estoque baixo</option>
+          <option value="zero">Zerado</option>
+        </select>
+      </div>
+      <div class="tbl-wrap tbl-scroll">
+        <table class="dtbl">
+          <thead><tr><th>Código</th><th>Nome</th><th>Categoria</th><th>Quantidade</th><th>Mínimo</th><th>Unidade</th><th>Localização</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody id="prods-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════ ENTRADAS ══════ -->
+    <div id="s-entries" class="section">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="page-title">Entradas</div>
+          <div class="page-subtitle">Registro de entradas no estoque</div>
+        </div>
+        <button class="btn btn-success" onclick="openEntryModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Nova Entrada
+        </button>
+      </div>
+      <div class="tbl-wrap tbl-scroll">
+        <table class="dtbl">
+          <thead><tr><th>Data / Hora</th><th>Produto</th><th>Qtd</th><th>Responsável</th><th>Observação</th></tr></thead>
+          <tbody id="entries-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════ SAÍDAS ══════ -->
+    <div id="s-exits" class="section">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="page-title">Saídas</div>
+          <div class="page-subtitle">Registro de saídas do estoque</div>
+        </div>
+        <button class="btn btn-danger" onclick="openExitModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/></svg>
+          Nova Saída
+        </button>
+      </div>
+      <div class="tbl-wrap tbl-scroll">
+        <table class="dtbl">
+          <thead><tr><th>Data / Hora</th><th>Produto</th><th>Qtd</th><th>Colaborador</th><th>Obra</th><th>Observação</th></tr></thead>
+          <tbody id="exits-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════ HISTÓRICO ══════ -->
+    <div id="s-history" class="section">
+      <div class="page-header">
+        <div class="page-title">Histórico Completo</div>
+        <div class="page-subtitle">Todas as movimentações registradas</div>
+      </div>
+      <div class="search-bar">
+        <input id="h-q" class="form-input" style="max-width:200px" placeholder="🔍  Buscar..."/>
+        <select id="h-type" class="form-input" style="max-width:140px">
+          <option value="">Todos</option>
+          <option value="entrada">Entradas</option>
+          <option value="saida">Saídas</option>
+        </select>
+        <input id="h-from" type="date" class="form-input" style="max-width:145px"/>
+        <input id="h-to" type="date" class="form-input" style="max-width:145px"/>
+        <button class="btn btn-ghost btn-sm" onclick="clearHistFilters()">Limpar</button>
+      </div>
+      <div class="tbl-wrap tbl-scroll">
+        <table class="dtbl">
+          <thead><tr>
+            <th style="cursor:pointer;user-select:none" onclick="histSortToggle()">Data/Hora <span id="hist-sort-ico">↓</span></th>
+            <th>Tipo</th><th>Produto</th><th>Qtd</th><th>Responsável</th><th>Obra</th><th>Obs</th>
+          </tr></thead>
+          <tbody id="hist-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════ OBRAS ══════ -->
+    <div id="s-obras" class="section">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="page-title">Obras</div>
+          <div class="page-subtitle">Cadastro de obras e projetos</div>
+        </div>
+        <button class="btn btn-primary" onclick="openObraModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Nova Obra
+        </button>
+      </div>
+      <div class="tbl-wrap tbl-scroll">
+        <table class="dtbl">
+          <thead><tr><th>Código</th><th>Nome</th><th>Responsável</th><th>Status</th><th>Retiradas</th><th>Ações</th></tr></thead>
+          <tbody id="obras-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════ COLABORADORES ══════ -->
+    <div id="s-colab" class="section">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="page-title">Colaboradores</div>
+          <div class="page-subtitle">Cadastro de equipe e operadores</div>
+        </div>
+        <button class="btn btn-primary" onclick="openColabModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Novo Colaborador
+        </button>
+      </div>
+      <div class="tbl-wrap tbl-scroll">
+        <table class="dtbl">
+          <thead><tr><th>Matrícula</th><th>Nome</th><th>Cargo</th><th>Setor</th><th>Retiradas</th><th>Ações</th></tr></thead>
+          <tbody id="colab-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════ RELATÓRIOS ══════ -->
+    <div id="s-reports" class="section">
+      <div class="page-header">
+        <div class="page-title">Relatórios & Exportações</div>
+        <div class="page-subtitle">Gere relatórios em PDF ou planilhas Excel</div>
+      </div>
+      <div style="margin-bottom:8px;font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.1em;font-weight:700">Relatórios PDF</div>
+      <div class="grid-3" style="margin-bottom:24px">
+        <div class="report-card" onclick="genPDF('full')">
+          <div class="report-icon">📦</div>
+          <div class="report-title">Estoque Geral</div>
+          <div class="report-desc">Todos os produtos com status e quantidades</div>
+          <button class="btn btn-primary btn-sm">Gerar PDF</button>
+        </div>
+        <div class="report-card" onclick="genPDF('critical')">
+          <div class="report-icon">⚠️</div>
+          <div class="report-title">Estoque Crítico</div>
+          <div class="report-desc">Produtos abaixo do mínimo ou zerados</div>
+          <button class="btn btn-primary btn-sm">Gerar PDF</button>
+        </div>
+        <div class="report-card" onclick="genPDF('history')">
+          <div class="report-icon">📋</div>
+          <div class="report-title">Histórico</div>
+          <div class="report-desc">Todas as movimentações de entrada e saída</div>
+          <button class="btn btn-primary btn-sm">Gerar PDF</button>
+        </div>
+        <div class="report-card" onclick="genPDF('inventory')">
+          <div class="report-icon">🗂️</div>
+          <div class="report-title">Inventário</div>
+          <div class="report-desc">Inventário completo com totais de movimentações</div>
+          <button class="btn btn-primary btn-sm">Gerar PDF</button>
+        </div>
+        <div class="report-card" onclick="genPDF('obras')">
+          <div class="report-icon">🏗️</div>
+          <div class="report-title">Saída por Obra</div>
+          <div class="report-desc">Consumo de materiais agrupado por obra</div>
+          <button class="btn btn-primary btn-sm">Gerar PDF</button>
+        </div>
+        <div class="report-card" onclick="genPDF('entries')">
+          <div class="report-icon">📥</div>
+          <div class="report-title">Entradas</div>
+          <div class="report-desc">Relatório completo de entradas no período</div>
+          <button class="btn btn-primary btn-sm">Gerar PDF</button>
+        </div>
+      </div>
+      <div style="margin-bottom:8px;font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.1em;font-weight:700">Planilhas Excel (.xlsx)</div>
+      <div class="grid-3">
+        <div class="report-card" onclick="genExcel('products')">
+          <div class="report-icon">📊</div>
+          <div class="report-title">Produtos — Excel</div>
+          <div class="report-desc">Planilha completa de todos os produtos</div>
+          <button class="btn btn-success btn-sm">Exportar Excel</button>
+        </div>
+        <div class="report-card" onclick="genExcel('movements')">
+          <div class="report-icon">📈</div>
+          <div class="report-title">Movimentações — Excel</div>
+          <div class="report-desc">Histórico completo em planilha</div>
+          <button class="btn btn-success btn-sm">Exportar Excel</button>
+        </div>
+        <div class="report-card" onclick="genExcel('full')">
+          <div class="report-icon">💼</div>
+          <div class="report-title">Backup Completo — Excel</div>
+          <div class="report-desc">Todos os dados em múltiplas abas</div>
+          <button class="btn btn-success btn-sm">Exportar Excel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ EXPORTAR ══════ -->
+    <div id="s-export" class="section">
+      <div class="page-header">
+        <div class="page-title">Exportar / Importar</div>
+        <div class="page-subtitle">Backup e restauração dos dados do sistema</div>
+      </div>
+      <div class="grid-3" style="margin-bottom:24px">
+        <div class="card">
+          <div class="card-title">Backup JSON</div>
+          <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:14px">Exporta todos os dados em formato JSON para backup ou migração.</div>
+          <button class="btn btn-primary btn-sm" onclick="exportJSON()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Exportar JSON
+          </button>
+        </div>
+        <div class="card">
+          <div class="card-title">Restaurar JSON</div>
+          <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:14px">Importa dados de um arquivo JSON de backup. Os dados atuais serão substituídos.</div>
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            Selecionar arquivo
+            <input type="file" accept=".json" onchange="importJSON(event)" style="display:none"/>
+          </label>
+        </div>
+        <div class="card">
+          <div class="card-title">Exportar XML</div>
+          <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:14px">Exporta todos os dados em formato XML para integração com outros sistemas.</div>
+          <button class="btn btn-primary btn-sm" onclick="exportXML()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Exportar XML
+          </button>
+        </div>
+      </div>
+      <div class="danger-zone">
+        <div class="danger-title">⚠️ Zona de Perigo</div>
+        <div style="font-size:.78rem;color:#fca5a5;margin-bottom:14px">Esta ação remove permanentemente todos os produtos, histórico, obras e colaboradores. Não pode ser desfeita.</div>
+        <button class="btn btn-danger btn-sm" onclick="clearAll()">Limpar todos os dados</button>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- ═══ TOASTS ═══ -->
+<div id="toast-wrap"></div>
+
+<!-- ═══ CONFIRM ═══ -->
+<div id="confirm-bg">
+  <div class="confirm-box">
+    <div style="font-size:1.6rem;margin-bottom:10px">⚠️</div>
+    <div id="conf-title" style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:700;color:#fff;letter-spacing:.04em;margin-bottom:8px">Confirmar</div>
+    <div id="conf-msg" style="font-size:.82rem;color:var(--text-secondary);margin-bottom:22px">Tem certeza?</div>
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button class="btn btn-ghost" onclick="closeConf()">Cancelar</button>
+      <button class="btn btn-danger" id="conf-ok">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PRODUTO MODAL ═══ -->
+<div id="m-prod" class="modal-bg">
+  <div class="modal" style="width:520px;max-width:95vw">
+    <div class="modal-header">
+      <div class="modal-title" id="m-prod-title">Novo Produto</div>
+      <button class="modal-close" onclick="closeProdModal()">✕</button>
+    </div>
+    <input type="hidden" id="f-pid"/>
+    <div class="form-grid form-grid-2">
+      <div class="form-group"><label class="form-label">Código *</label><input id="f-code" class="form-input" placeholder="EX: MAT-001"/></div>
+      <div class="form-group"><label class="form-label">Nome *</label><input id="f-name" class="form-input" placeholder="Nome do produto"/></div>
+      <div class="form-group">
+        <label class="form-label">Categoria</label>
+        <input id="f-cat" class="form-input" placeholder="Elétrico, Hidráulico..." list="dl-cats"/>
+        <datalist id="dl-cats"></datalist>
+      </div>
+      <div class="form-group"><label class="form-label">Unidade</label>
+        <select id="f-unit" class="form-input">
+          <option>UN</option><option>KG</option><option>M</option><option>M²</option><option>M³</option>
+          <option>L</option><option>PC</option><option>CX</option><option>RL</option><option>BAR</option>
+          <option>PAR</option><option>SC</option><option>GL</option><option>PCT</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Quantidade Atual</label><input id="f-qty" type="number" class="form-input" min="0" value="0"/></div>
+      <div class="form-group"><label class="form-label">Quantidade Mínima</label><input id="f-min" type="number" class="form-input" min="0" value="0"/></div>
+      <div class="form-group" style="grid-column:1/-1"><label class="form-label">Localização</label><input id="f-loc" class="form-input" placeholder="Ex: Galpão A – Prateleira 3"/></div>
+      <div class="form-group" style="grid-column:1/-1"><label class="form-label">Observação</label><textarea id="f-obs" class="form-input" rows="2" placeholder="Informações adicionais..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeProdModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProd()">Salvar Produto</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ENTRADA MODAL ═══ -->
+<div id="m-entry" class="modal-bg">
+  <div class="modal" style="width:460px;max-width:95vw">
+    <div class="modal-header">
+      <div class="modal-title">Registrar Entrada</div>
+      <button class="modal-close" onclick="closeEntryModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label class="form-label">Produto *</label>
+        <select id="e-prod" class="form-input"><option value="">Selecione o produto...</option></select>
+      </div>
+      <div class="form-grid form-grid-2">
+        <div class="form-group"><label class="form-label">Quantidade *</label><input id="e-qty" type="number" class="form-input" min="1" value="1"/></div>
+        <div class="form-group"><label class="form-label">Data *</label><input id="e-date" type="date" class="form-input"/></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Responsável *</label>
+        <input id="e-resp" class="form-input" placeholder="Nome do responsável" list="dl-colab-e"/>
+        <datalist id="dl-colab-e"></datalist>
+      </div>
+      <div class="form-group"><label class="form-label">Observação</label><textarea id="e-obs" class="form-input" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeEntryModal()">Cancelar</button>
+      <button class="btn btn-success" onclick="saveEntry()">Registrar Entrada</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SAÍDA MODAL ═══ -->
+<div id="m-exit" class="modal-bg">
+  <div class="modal" style="width:460px;max-width:95vw">
+    <div class="modal-header">
+      <div class="modal-title">Registrar Saída</div>
+      <button class="modal-close" onclick="closeExitModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Produto *</label>
+        <select id="x-prod" class="form-input" onchange="updExitStock()"><option value="">Selecione o produto...</option></select>
+        <div id="x-stock" style="font-size:.72rem;color:var(--accent);margin-top:5px"></div>
+      </div>
+      <div class="form-grid form-grid-2">
+        <div class="form-group"><label class="form-label">Quantidade *</label><input id="x-qty" type="number" class="form-input" min="1" value="1"/></div>
+        <div class="form-group"><label class="form-label">Data *</label><input id="x-date" type="date" class="form-input"/></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Colaborador *</label>
+        <input id="x-colab" class="form-input" placeholder="Nome do colaborador" list="dl-colab-x"/>
+        <datalist id="dl-colab-x"></datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Obra</label>
+        <input id="x-obra" class="form-input" placeholder="Nome da obra" list="dl-obras-x"/>
+        <datalist id="dl-obras-x"></datalist>
+      </div>
+      <div class="form-group"><label class="form-label">Observação</label><textarea id="x-obs" class="form-input" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeExitModal()">Cancelar</button>
+      <button class="btn btn-danger" onclick="saveExit()">Registrar Saída</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ OBRA MODAL ═══ -->
+<div id="m-obra" class="modal-bg">
+  <div class="modal" style="width:420px;max-width:95vw">
+    <div class="modal-header">
+      <div class="modal-title" id="m-obra-title">Nova Obra</div>
+      <button class="modal-close" onclick="closeObraModal()">✕</button>
+    </div>
+    <input type="hidden" id="o-id"/>
+    <div class="form-grid">
+      <div class="form-grid form-grid-2">
+        <div class="form-group"><label class="form-label">Código</label><input id="o-code" class="form-input" placeholder="OBR-001"/></div>
+        <div class="form-group"><label class="form-label">Status</label>
+          <select id="o-status" class="form-input"><option value="ativa">Ativa</option><option value="pausada">Pausada</option><option value="concluida">Concluída</option></select>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Nome da Obra *</label><input id="o-name" class="form-input" placeholder="Descrição da obra"/></div>
+      <div class="form-group"><label class="form-label">Responsável</label><input id="o-resp" class="form-input" placeholder="Engenheiro / Gestor responsável"/></div>
+      <div class="form-group"><label class="form-label">Observação</label><textarea id="o-obs" class="form-input" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeObraModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveObra()">Salvar Obra</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ COLAB MODAL ═══ -->
+<div id="m-colab" class="modal-bg">
+  <div class="modal" style="width:400px;max-width:95vw">
+    <div class="modal-header">
+      <div class="modal-title" id="m-colab-title">Novo Colaborador</div>
+      <button class="modal-close" onclick="closeColabModal()">✕</button>
+    </div>
+    <input type="hidden" id="c-id"/>
+    <div class="form-grid">
+      <div class="form-grid form-grid-2">
+        <div class="form-group"><label class="form-label">Matrícula</label><input id="c-mat" class="form-input" placeholder="COL-001"/></div>
+        <div class="form-group"><label class="form-label">Cargo</label><input id="c-cargo" class="form-input" placeholder="Eletricista"/></div>
+      </div>
+      <div class="form-group"><label class="form-label">Nome Completo *</label><input id="c-name" class="form-input" placeholder="Nome completo"/></div>
+      <div class="form-group"><label class="form-label">Setor</label><input id="c-setor" class="form-input" placeholder="Elétrica, Civil, Mecânica..."/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeColabModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveColab()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// STORAGE / DB
+// ══════════════════════════════════════════
+const K = {p:'ac_products',m:'ac_movs',o:'ac_obras',c:'ac_colab'};
+const db = {
+  read(k){try{return JSON.parse(localStorage.getItem(k))||[]}catch{return[]}},
+  write(k,v){localStorage.setItem(k,JSON.stringify(v))},
+  prods(){return this.read(K.p)},
+  movs(){return this.read(K.m)},
+  obras(){return this.read(K.o)},
+  colab(){return this.read(K.c)},
+  sP(v){this.write(K.p,v)},
+  sM(v){this.write(K.m,v)},
+  sO(v){this.write(K.o,v)},
+  sC(v){this.write(K.c,v)},
+};
+
+// ══════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function today(){return new Date().toISOString().slice(0,10)}
+function nowISO(){return new Date().toISOString()}
+function fmtDT(iso){
+  if(!iso)return '—';
+  const d=new Date(iso);
+  return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function pStatus(p){
+  if(p.qty<=0)return {t:'Zerado',c:'badge-zero'};
+  if(p.min>0&&p.qty<=p.min)return {t:'Crítico',c:'badge-zero'};
+  if(p.min>0&&p.qty<=p.min*1.5)return {t:'Baixo',c:'badge-low'};
+  return {t:'Normal',c:'badge-ok'};
+}
+function qtyColor(p){
+  if(p.qty<=0)return '#ef4444';
+  if(p.min>0&&p.qty<=p.min)return '#f59e0b';
+  return '#10b981';
+}
+
+// ══════════════════════════════════════════
+// CLOCK
+// ══════════════════════════════════════════
+function tickClock(){
+  document.getElementById('topbar-clock').textContent=
+    new Date().toLocaleString('pt-BR',{weekday:'short',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+tickClock(); setInterval(tickClock,10000);
+
+// ══════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════
+const icons={success:'✓',error:'✕',warning:'!',info:'i'};
+function toast(msg,type='info'){
+  const wrap=document.getElementById('toast-wrap');
+  const t=document.createElement('div');
+  t.className=`toast ${type}`;
+  t.innerHTML=`<div class="toast-icon">${icons[type]||'i'}</div><div>${msg}</div>`;
+  wrap.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(10px)';t.style.transition='all .3s';setTimeout(()=>t.remove(),300)},3000);
+}
+
+// ══════════════════════════════════════════
+// CONFIRM
+// ══════════════════════════════════════════
+let confCb=null;
+function confirm2(title,msg,cb){
+  document.getElementById('conf-title').textContent=title;
+  document.getElementById('conf-msg').textContent=msg;
+  confCb=cb;
+  document.getElementById('confirm-bg').classList.add('open');
+}
+function closeConf(){document.getElementById('confirm-bg').classList.remove('open');confCb=null}
+document.getElementById('conf-ok').onclick=()=>{if(confCb)confCb();closeConf()};
+
+// ══════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════
+const sectionMeta={
+  dashboard:'Dashboard', alerts:'Alertas de Estoque', products:'Produtos',
+  entries:'Entradas', exits:'Saídas', history:'Histórico',
+  obras:'Obras', colab:'Colaboradores', reports:'PDF & Excel', export:'Exportar / Importar'
+};
+function nav(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById('s-'+id);
+  if(el)el.classList.add('active');
+  document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
+  document.querySelectorAll('.nav-link[data-section="'+id+'"]').forEach(l=>l.classList.add('active'));
+  document.getElementById('topbar-title').textContent=sectionMeta[id]||id;
+  const renders={
+    dashboard:renderDash, alerts:renderAlerts, products:renderProds,
+    entries:renderEntries, exits:renderExits, history:renderHist,
+    obras:renderObras, colab:renderColab
+  };
+  if(renders[id])renders[id]();
+}
+
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  sb.classList.toggle('collapsed');
+  const ico=document.getElementById('collapse-ico');
+  ico.style.transform=sb.classList.contains('collapsed')?'rotate(180deg)':'';
+}
+function toggleMobile(){
+  document.getElementById('sidebar').classList.toggle('mobile-open');
+}
+
+// ══════════════════════════════════════════
+// ALERT BADGE
+// ══════════════════════════════════════════
+function updBadge(){
+  const n=db.prods().filter(p=>p.qty<=p.min).length;
+  const b=document.getElementById('alert-badge');
+  b.textContent=n;
+  b.style.display=n>0?'':'none';
+}
+
+// ══════════════════════════════════════════
+// CHART INSTANCES
+// ══════════════════════════════════════════
+const charts={};
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+// ══════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════
+function renderDash(){
+  const prods=db.prods(), movs=db.movs();
+  document.getElementById('k-total').textContent=prods.length;
+  document.getElementById('k-low').textContent=prods.filter(p=>p.qty>0&&p.min>0&&p.qty<=p.min).length;
+  document.getElementById('k-zero').textContent=prods.filter(p=>p.qty<=0).length;
+  document.getElementById('k-mov').textContent=movs.length;
+
+  // Recent
+  const lastIn=movs.filter(m=>m.t==='e').slice(-5).reverse();
+  const lastOut=movs.filter(m=>m.t==='s').slice(-5).reverse();
+  const ri=document.getElementById('dash-in');
+  ri.innerHTML=lastIn.length?lastIn.map(m=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--text-secondary);font-size:.77rem">${m.pn}</span>
+      <span class="badge badge-in">+${m.q}</span>
+    </div>`).join(''):`<div style="color:var(--text-muted);font-size:.76rem;padding:8px 0">Nenhuma entrada registrada</div>`;
+  const ro=document.getElementById('dash-out');
+  ro.innerHTML=lastOut.length?lastOut.map(m=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--text-secondary);font-size:.77rem">${m.pn}</span>
+      <span class="badge badge-out">-${m.q}</span>
+    </div>`).join(''):`<div style="color:var(--text-muted);font-size:.76rem;padding:8px 0">Nenhuma saída registrada</div>`;
+
+  buildIOChart(movs);
+  buildObraChart(movs);
+  buildTopChart(movs);
+}
+
+const CHART_CFG={responsive:true,maintainAspectRatio:true};
+const TICK_STYLE={color:'#3d5a7a',font:{size:9,family:'Barlow'}};
+const GRID_COLOR='rgba(26,48,80,.6)';
+
+function buildIOChart(movs){
+  const days=[],labels=[];
+  for(let i=29;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    days.push(d.toISOString().slice(0,10));
+    labels.push(d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}));
+  }
+  const step=2;
+  const filtLabels=labels.filter((_,i)=>i%step===0);
+  const filtIn=days.filter((_,i)=>i%step===0).map(d=>movs.filter(m=>m.t==='e'&&m.d&&m.d.startsWith(d)).reduce((a,m)=>a+m.q,0));
+  const filtOut=days.filter((_,i)=>i%step===0).map(d=>movs.filter(m=>m.t==='s'&&m.d&&m.d.startsWith(d)).reduce((a,m)=>a+m.q,0));
+
+  destroyChart('io');
+  const ctx=document.getElementById('ch-io').getContext('2d');
+  charts['io']=new Chart(ctx,{type:'line',data:{labels:filtLabels,datasets:[
+    {label:'Entradas',data:filtIn,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.08)',tension:.4,fill:true,pointRadius:2.5,pointBackgroundColor:'#10b981',borderWidth:2},
+    {label:'Saídas',data:filtOut,borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.08)',tension:.4,fill:true,pointRadius:2.5,pointBackgroundColor:'#ef4444',borderWidth:2}
+  ]},options:{...CHART_CFG,plugins:{legend:{labels:{color:'#7a9bc0',font:{size:9,family:'Barlow'},boxWidth:10}}},scales:{x:{ticks:TICK_STYLE,grid:{color:GRID_COLOR}},y:{ticks:TICK_STYLE,grid:{color:GRID_COLOR},beginAtZero:true}}}});
+}
+
+function buildObraChart(movs){
+  const m={};
+  movs.filter(mv=>mv.t==='s'&&mv.ob).forEach(mv=>{m[mv.ob]=(m[mv.ob]||0)+mv.q});
+  const sorted=Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  destroyChart('obra');
+  const ctx=document.getElementById('ch-obra').getContext('2d');
+  charts['obra']=new Chart(ctx,{type:'doughnut',data:{labels:sorted.map(x=>x[0]),datasets:[{data:sorted.map(x=>x[1]),backgroundColor:['#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#3b82f6'],borderWidth:2,borderColor:'#0b1829'}]},options:{...CHART_CFG,plugins:{legend:{labels:{color:'#7a9bc0',font:{size:9,family:'Barlow'},boxWidth:10,padding:8}}}}});
+}
+
+function buildTopChart(movs){
+  const m={};
+  movs.filter(mv=>mv.t==='s').forEach(mv=>{m[mv.pn]=(m[mv.pn]||0)+mv.q});
+  const sorted=Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  destroyChart('top');
+  const ctx=document.getElementById('ch-top').getContext('2d');
+  charts['top']=new Chart(ctx,{type:'bar',data:{labels:sorted.map(x=>x[0].length>18?x[0].slice(0,17)+'…':x[0]),datasets:[{label:'Qtd Retirada',data:sorted.map(x=>x[1]),backgroundColor:'rgba(6,182,212,.7)',borderColor:'#06b6d4',borderWidth:1,borderRadius:4}]},options:{...CHART_CFG,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:TICK_STYLE,grid:{color:GRID_COLOR},beginAtZero:true},y:{ticks:{...TICK_STYLE,color:'#7a9bc0'},grid:{display:false}}}}});
+}
+
+// ══════════════════════════════════════════
+// ALERTS
+// ══════════════════════════════════════════
+function renderAlerts(){
+  const prods=db.prods();
+  const zeros=prods.filter(p=>p.qty<=0);
+  const lows=prods.filter(p=>p.qty>0&&p.min>0&&p.qty<=p.min);
+  let html='';
+  if(!zeros.length&&!lows.length){
+    html=`<div style="text-align:center;padding:80px 0;color:var(--text-muted)">
+      <div style="font-size:3rem;margin-bottom:12px">✅</div>
+      <div style="font-size:1rem;color:var(--text-secondary)">Nenhum alerta. Estoque em situação normal.</div>
+    </div>`;
+  } else {
+    if(zeros.length){
+      html+=`<div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:#f87171;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">🔴 Produtos Zerados (${zeros.length})</div>`;
+      zeros.forEach(p=>{html+=`<div class="alert-card alert-critical">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#ef4444" stroke-width="2" flex-shrink="0" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <div>
+          <div style="color:#fca5a5;font-weight:600;font-size:.82rem">${p.name}</div>
+          <div style="color:#7a9bc0;font-size:.72rem;margin-top:2px">Código: ${p.code} &nbsp;|&nbsp; Localização: ${p.loc||'—'} &nbsp;|&nbsp; Mínimo: ${p.min} ${p.unit}</div>
+        </div>
+      </div>`;});
+      html+='<div style="margin-bottom:20px"></div>';
+    }
+    if(lows.length){
+      html+=`<div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:#fbbf24;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">⚠️ Estoque Baixo (${lows.length})</div>`;
+      lows.forEach(p=>{html+=`<div class="alert-card alert-warning">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f59e0b" stroke-width="2" style="flex-shrink:0;margin-top:2px"><path stroke-linecap="round" stroke-linejoin="round" d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4m0 4h.01"/></svg>
+        <div>
+          <div style="color:#fde68a;font-weight:600;font-size:.82rem">${p.name}</div>
+          <div style="color:#7a9bc0;font-size:.72rem;margin-top:2px">Código: ${p.code} &nbsp;|&nbsp; Atual: <strong style="color:#fbbf24">${p.qty} ${p.unit}</strong> &nbsp;|&nbsp; Mínimo: ${p.min} ${p.unit} &nbsp;|&nbsp; Localização: ${p.loc||'—'}</div>
+        </div>
+      </div>`;});
+    }
+  }
+  document.getElementById('alerts-body').innerHTML=html;
+  updBadge();
+}
+
+// ══════════════════════════════════════════
+// PRODUCTS
+// ══════════════════════════════════════════
+function renderProds(){
+  let prods=db.prods();
+  const q=(document.getElementById('p-search').value||'').toLowerCase();
+  const cat=document.getElementById('p-cat').value;
+  const status=document.getElementById('p-status').value;
+  // Update category datalist and select
+  const cats=[...new Set(prods.map(p=>p.cat).filter(Boolean))].sort();
+  const prevCat=cat;
+  document.getElementById('p-cat').innerHTML='<option value="">Todas as categorias</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  document.getElementById('p-cat').value=prevCat;
+  document.getElementById('dl-cats').innerHTML=cats.map(c=>`<option value="${c}">`).join('');
+  if(q)prods=prods.filter(p=>(p.name+p.code+p.cat+p.loc).toLowerCase().includes(q));
+  if(cat)prods=prods.filter(p=>p.cat===cat);
+  if(status==='ok')prods=prods.filter(p=>p.qty>p.min);
+  if(status==='low')prods=prods.filter(p=>p.qty>0&&p.min>0&&p.qty<=p.min);
+  if(status==='zero')prods=prods.filter(p=>p.qty<=0);
+  const tb=document.getElementById('prods-body');
+  if(!prods.length){
+    tb.innerHTML=`<tr class="empty-row"><td colspan="9">Nenhum produto encontrado</td></tr>`;return;
+  }
+  tb.innerHTML=prods.map(p=>{
+    const s=pStatus(p);
+    return `<tr>
+      <td style="font-family:'Barlow Condensed',sans-serif;font-weight:600;color:var(--accent);font-size:.85rem">${p.code}</td>
+      <td style="color:var(--text-primary);font-weight:500">${p.name}</td>
+      <td>${p.cat?`<span class="badge badge-blue">${p.cat}</span>`:'<span style="color:var(--text-muted)">—</span>'}</td>
+      <td style="font-weight:700;font-size:.88rem;color:${qtyColor(p)}">${p.qty} <span style="font-size:.68rem;font-weight:400;color:var(--text-muted)">${p.unit}</span></td>
+      <td style="color:var(--text-muted)">${p.min} <span style="font-size:.68rem">${p.unit}</span></td>
+      <td style="color:var(--text-muted)">${p.unit}</td>
+      <td style="color:var(--text-muted);font-size:.75rem">${p.loc||'—'}</td>
+      <td><span class="badge ${s.c}">${s.t}</span></td>
+      <td><div style="display:flex;gap:5px">
+        <button class="icon-btn e" title="Editar" onclick="openProdModal('${p.id}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        </button>
+        <button class="icon-btn d" title="Excluir" onclick="delProd('${p.id}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+document.getElementById('p-search').addEventListener('input',renderProds);
+
+function openProdModal(id){
+  const fields={pid:'',code:'',name:'',cat:'',unit:'UN',qty:0,min:0,loc:'',obs:''};
+  if(id){
+    const p=db.prods().find(x=>x.id===id);
+    if(p)Object.assign(fields,{pid:p.id,code:p.code,name:p.name,cat:p.cat||'',unit:p.unit,qty:p.qty,min:p.min,loc:p.loc||'',obs:p.obs||''});
+  }
+  document.getElementById('m-prod-title').textContent=id?'Editar Produto':'Novo Produto';
+  document.getElementById('f-pid').value=fields.pid;
+  document.getElementById('f-code').value=fields.code;
+  document.getElementById('f-name').value=fields.name;
+  document.getElementById('f-cat').value=fields.cat;
+  document.getElementById('f-unit').value=fields.unit;
+  document.getElementById('f-qty').value=fields.qty;
+  document.getElementById('f-min').value=fields.min;
+  document.getElementById('f-loc').value=fields.loc;
+  document.getElementById('f-obs').value=fields.obs;
+  document.getElementById('m-prod').classList.add('open');
+  setTimeout(()=>document.getElementById('f-code').focus(),100);
+}
+function closeProdModal(){document.getElementById('m-prod').classList.remove('open')}
+function saveProd(){
+  const id=document.getElementById('f-pid').value;
+  const code=document.getElementById('f-code').value.trim();
+  const name=document.getElementById('f-name').value.trim();
+  if(!code||!name){toast('Preencha código e nome obrigatórios','error');return}
+  const data={
+    code,name,
+    cat:document.getElementById('f-cat').value.trim(),
+    unit:document.getElementById('f-unit').value,
+    qty:parseFloat(document.getElementById('f-qty').value)||0,
+    min:parseFloat(document.getElementById('f-min').value)||0,
+    loc:document.getElementById('f-loc').value.trim(),
+    obs:document.getElementById('f-obs').value.trim(),
+  };
+  const prods=db.prods();
+  if(id){
+    const i=prods.findIndex(x=>x.id===id);
+    if(i>=0)prods[i]={...prods[i],...data};
+    else{toast('Produto não encontrado','error');return}
+    db.sP(prods);
+    toast('Produto atualizado com sucesso','success');
+  } else {
+    if(prods.some(p=>p.code===code)){toast('Código já cadastrado','error');return}
+    prods.push({id:uid(),...data});
+    db.sP(prods);
+    toast('Produto cadastrado com sucesso','success');
+  }
+  closeProdModal();renderProds();updBadge();
+}
+function delProd(id){
+  const p=db.prods().find(x=>x.id===id);
+  confirm2('Excluir Produto',`Excluir "${p?.name||id}"? O histórico será mantido.`,()=>{
+    db.sP(db.prods().filter(x=>x.id!==id));
+    toast('Produto excluído','warning');renderProds();updBadge();
+  });
+}
+
+// ══════════════════════════════════════════
+// ENTRIES
+// ══════════════════════════════════════════
+function openEntryModal(){
+  const prods=db.prods();
+  const colab=db.colab();
+  document.getElementById('e-prod').innerHTML='<option value="">Selecione o produto...</option>'+
+    prods.map(p=>`<option value="${p.id}">${p.code} – ${p.name} (${p.qty} ${p.unit})</option>`).join('');
+  document.getElementById('e-qty').value=1;
+  document.getElementById('e-date').value=today();
+  document.getElementById('e-resp').value='';
+  document.getElementById('e-obs').value='';
+  document.getElementById('dl-colab-e').innerHTML=colab.map(c=>`<option value="${c.name}">`).join('');
+  document.getElementById('m-entry').classList.add('open');
+}
+function closeEntryModal(){document.getElementById('m-entry').classList.remove('open')}
+function saveEntry(){
+  const pid=document.getElementById('e-prod').value;
+  const qty=parseFloat(document.getElementById('e-qty').value)||0;
+  const date=document.getElementById('e-date').value;
+  const resp=document.getElementById('e-resp').value.trim();
+  const obs=document.getElementById('e-obs').value.trim();
+  if(!pid||qty<=0||!resp){toast('Preencha produto, quantidade e responsável','error');return}
+  const prods=db.prods();
+  const idx=prods.findIndex(p=>p.id===pid);
+  if(idx<0){toast('Produto não encontrado','error');return}
+  prods[idx].qty+=qty;
+  db.sP(prods);
+  const movs=db.movs();
+  movs.push({id:uid(),t:'e',pid,pn:prods[idx].name,q:qty,d:date+'T'+new Date().toTimeString().slice(0,8),resp,obs});
+  db.sM(movs);
+  toast(`Entrada: +${qty} ${prods[idx].unit} — ${prods[idx].name}`,'success');
+  closeEntryModal();renderEntries();updBadge();
+}
+function renderEntries(){
+  const movs=db.movs().filter(m=>m.t==='e').slice().reverse();
+  const tb=document.getElementById('entries-body');
+  if(!movs.length){tb.innerHTML=`<tr class="empty-row"><td colspan="5">Nenhuma entrada registrada</td></tr>`;return}
+  tb.innerHTML=movs.map(m=>`<tr>
+    <td style="font-size:.73rem;color:var(--text-muted)">${fmtDT(m.d)}</td>
+    <td style="color:var(--text-primary)">${m.pn}</td>
+    <td><span class="badge badge-in">+${m.q}</span></td>
+    <td style="color:var(--text-secondary)">${m.resp||'—'}</td>
+    <td style="font-size:.73rem;color:var(--text-muted)">${m.obs||'—'}</td>
+  </tr>`).join('');
+}
+
+// ══════════════════════════════════════════
+// EXITS
+// ══════════════════════════════════════════
+function openExitModal(){
+  const prods=db.prods();
+  const colab=db.colab();
+  const obras=db.obras();
+  document.getElementById('x-prod').innerHTML='<option value="">Selecione o produto...</option>'+
+    prods.map(p=>`<option value="${p.id}">${p.code} – ${p.name} (${p.qty} ${p.unit})</option>`).join('');
+  document.getElementById('x-qty').value=1;
+  document.getElementById('x-date').value=today();
+  document.getElementById('x-colab').value='';
+  document.getElementById('x-obra').value='';
+  document.getElementById('x-obs').value='';
+  document.getElementById('x-stock').textContent='';
+  document.getElementById('dl-colab-x').innerHTML=colab.map(c=>`<option value="${c.name}">`).join('');
+  document.getElementById('dl-obras-x').innerHTML=obras.map(o=>`<option value="${o.name}">`).join('');
+  document.getElementById('m-exit').classList.add('open');
+}
+function closeExitModal(){document.getElementById('m-exit').classList.remove('open')}
+function updExitStock(){
+  const pid=document.getElementById('x-prod').value;
+  const el=document.getElementById('x-stock');
+  if(!pid){el.textContent='';return}
+  const p=db.prods().find(x=>x.id===pid);
+  if(p)el.textContent=`Estoque disponível: ${p.qty} ${p.unit}`;
+}
+function saveExit(){
+  const pid=document.getElementById('x-prod').value;
+  const qty=parseFloat(document.getElementById('x-qty').value)||0;
+  const date=document.getElementById('x-date').value;
+  const colab=document.getElementById('x-colab').value.trim();
+  const obra=document.getElementById('x-obra').value.trim();
+  const obs=document.getElementById('x-obs').value.trim();
+  if(!pid||qty<=0||!colab){toast('Preencha produto, quantidade e colaborador','error');return}
+  const prods=db.prods();
+  const idx=prods.findIndex(p=>p.id===pid);
+  if(idx<0){toast('Produto não encontrado','error');return}
+  if(prods[idx].qty<qty){toast(`Estoque insuficiente! Disponível: ${prods[idx].qty} ${prods[idx].unit}`,'error');return}
+  prods[idx].qty-=qty;
+  db.sP(prods);
+  const movs=db.movs();
+  movs.push({id:uid(),t:'s',pid,pn:prods[idx].name,q:qty,d:date+'T'+new Date().toTimeString().slice(0,8),resp:colab,colab,ob:obra,obs});
+  db.sM(movs);
+  toast(`Saída: -${qty} ${prods[idx].unit} — ${prods[idx].name}`,'success');
+  closeExitModal();renderExits();updBadge();
+}
+function renderExits(){
+  const movs=db.movs().filter(m=>m.t==='s').slice().reverse();
+  const tb=document.getElementById('exits-body');
+  if(!movs.length){tb.innerHTML=`<tr class="empty-row"><td colspan="6">Nenhuma saída registrada</td></tr>`;return}
+  tb.innerHTML=movs.map(m=>`<tr>
+    <td style="font-size:.73rem;color:var(--text-muted)">${fmtDT(m.d)}</td>
+    <td style="color:var(--text-primary)">${m.pn}</td>
+    <td><span class="badge badge-out">-${m.q}</span></td>
+    <td style="color:var(--text-secondary)">${m.colab||m.resp||'—'}</td>
+    <td>${m.ob?`<span class="badge badge-blue">${m.ob}</span>`:'<span style="color:var(--text-muted)">—</span>'}</td>
+    <td style="font-size:.73rem;color:var(--text-muted)">${m.obs||'—'}</td>
+  </tr>`).join('');
+}
+
+// ══════════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════════
+let histAsc=false;
+function histSortToggle(){histAsc=!histAsc;document.getElementById('hist-sort-ico').textContent=histAsc?'↑':'↓';renderHist()}
+function clearHistFilters(){
+  ['h-q','h-type','h-from','h-to'].forEach(id=>document.getElementById(id).value='');
+  renderHist();
+}
+['h-q','h-type','h-from','h-to'].forEach(id=>document.getElementById(id).addEventListener('change',renderHist));
+document.getElementById('h-q').addEventListener('input',renderHist);
+function renderHist(){
+  let movs=db.movs().slice();
+  const q=(document.getElementById('h-q').value||'').toLowerCase();
+  const type=document.getElementById('h-type').value;
+  const from=document.getElementById('h-from').value;
+  const to=document.getElementById('h-to').value;
+  if(q)movs=movs.filter(m=>(m.pn+m.resp+m.colab+m.ob).toLowerCase().includes(q));
+  if(type)movs=movs.filter(m=>m.t===(type==='entrada'?'e':'s'));
+  if(from)movs=movs.filter(m=>m.d&&m.d>=from);
+  if(to)movs=movs.filter(m=>m.d&&m.d<=(to+'T23:59:59'));
+  movs.sort((a,b)=>{const r=(a.d||'')>(b.d||'')?1:-1;return histAsc?r:-r});
+  const tb=document.getElementById('hist-body');
+  if(!movs.length){tb.innerHTML=`<tr class="empty-row"><td colspan="7">Nenhuma movimentação encontrada</td></tr>`;return}
+  tb.innerHTML=movs.map(m=>`<tr>
+    <td style="font-size:.73rem;color:var(--text-muted);white-space:nowrap">${fmtDT(m.d)}</td>
+    <td><span class="badge ${m.t==='e'?'badge-in':'badge-out'}">${m.t==='e'?'ENTRADA':'SAÍDA'}</span></td>
+    <td style="color:var(--text-primary)">${m.pn}</td>
+    <td style="font-weight:700;color:${m.t==='e'?'#10b981':'#ef4444'}">${m.t==='e'?'+':'-'}${m.q}</td>
+    <td style="color:var(--text-secondary)">${m.resp||m.colab||'—'}</td>
+    <td>${m.ob?`<span class="badge badge-blue">${m.ob}</span>`:'<span style="color:var(--text-muted)">—</span>'}</td>
+    <td style="font-size:.73rem;color:var(--text-muted)">${m.obs||'—'}</td>
+  </tr>`).join('');
+}
+
+// ══════════════════════════════════════════
+// OBRAS
+// ══════════════════════════════════════════
+function openObraModal(id){
+  document.getElementById('o-id').value='';
+  document.getElementById('o-code').value='';
+  document.getElementById('o-name').value='';
+  document.getElementById('o-resp').value='';
+  document.getElementById('o-status').value='ativa';
+  document.getElementById('o-obs').value='';
+  document.getElementById('m-obra-title').textContent='Nova Obra';
+  if(id){
+    const o=db.obras().find(x=>x.id===id);
+    if(o){
+      document.getElementById('m-obra-title').textContent='Editar Obra';
+      document.getElementById('o-id').value=o.id;
+      document.getElementById('o-code').value=o.code||'';
+      document.getElementById('o-name').value=o.name;
+      document.getElementById('o-resp').value=o.resp||'';
+      document.getElementById('o-status').value=o.status||'ativa';
+      document.getElementById('o-obs').value=o.obs||'';
+    }
+  }
+  document.getElementById('m-obra').classList.add('open');
+}
+function closeObraModal(){document.getElementById('m-obra').classList.remove('open')}
+function saveObra(){
+  const id=document.getElementById('o-id').value;
+  const name=document.getElementById('o-name').value.trim();
+  if(!name){toast('Nome da obra é obrigatório','error');return}
+  const data={code:document.getElementById('o-code').value.trim(),name,resp:document.getElementById('o-resp').value.trim(),status:document.getElementById('o-status').value,obs:document.getElementById('o-obs').value.trim()};
+  const obras=db.obras();
+  if(id){const i=obras.findIndex(x=>x.id===id);if(i>=0)obras[i]={...obras[i],...data};}
+  else obras.push({id:uid(),...data});
+  db.sO(obras);
+  toast('Obra salva com sucesso','success');
+  closeObraModal();renderObras();
+}
+function renderObras(){
+  const obras=db.obras();
+  const movs=db.movs();
+  const tb=document.getElementById('obras-body');
+  if(!obras.length){tb.innerHTML=`<tr class="empty-row"><td colspan="6">Nenhuma obra cadastrada</td></tr>`;return}
+  tb.innerHTML=obras.map(o=>{
+    const ret=movs.filter(m=>m.t==='s'&&m.ob===o.name).length;
+    return `<tr>
+      <td style="font-family:'Barlow Condensed',sans-serif;font-weight:600;color:var(--accent)">${o.code||'—'}</td>
+      <td style="color:var(--text-primary);font-weight:500">${o.name}</td>
+      <td style="color:var(--text-secondary)">${o.resp||'—'}</td>
+      <td><span class="badge badge-${o.status||'ativa'}">${o.status||'Ativa'}</span></td>
+      <td style="color:#10b981;font-weight:700">${ret}</td>
+      <td><div style="display:flex;gap:5px">
+        <button class="icon-btn e" onclick="openObraModal('${o.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+        <button class="icon-btn d" onclick="delObra('${o.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+function delObra(id){confirm2('Excluir Obra','Confirmar exclusão desta obra?',()=>{db.sO(db.obras().filter(o=>o.id!==id));toast('Obra excluída','warning');renderObras()})}
+
+// ══════════════════════════════════════════
+// COLABORADORES
+// ══════════════════════════════════════════
+function openColabModal(id){
+  ['c-id','c-mat','c-name','c-cargo','c-setor'].forEach(f=>document.getElementById(f).value='');
+  document.getElementById('m-colab-title').textContent='Novo Colaborador';
+  if(id){
+    const c=db.colab().find(x=>x.id===id);
+    if(c){
+      document.getElementById('m-colab-title').textContent='Editar Colaborador';
+      document.getElementById('c-id').value=c.id;
+      document.getElementById('c-mat').value=c.mat||'';
+      document.getElementById('c-name').value=c.name;
+      document.getElementById('c-cargo').value=c.cargo||'';
+      document.getElementById('c-setor').value=c.setor||'';
+    }
+  }
+  document.getElementById('m-colab').classList.add('open');
+}
+function closeColabModal(){document.getElementById('m-colab').classList.remove('open')}
+function saveColab(){
+  const id=document.getElementById('c-id').value;
+  const name=document.getElementById('c-name').value.trim();
+  if(!name){toast('Nome é obrigatório','error');return}
+  const data={mat:document.getElementById('c-mat').value.trim(),name,cargo:document.getElementById('c-cargo').value.trim(),setor:document.getElementById('c-setor').value.trim()};
+  const list=db.colab();
+  if(id){const i=list.findIndex(x=>x.id===id);if(i>=0)list[i]={...list[i],...data};}
+  else list.push({id:uid(),...data});
+  db.sC(list);
+  toast('Colaborador salvo','success');
+  closeColabModal();renderColab();
+}
+function renderColab(){
+  const list=db.colab();
+  const movs=db.movs();
+  const tb=document.getElementById('colab-body');
+  if(!list.length){tb.innerHTML=`<tr class="empty-row"><td colspan="6">Nenhum colaborador cadastrado</td></tr>`;return}
+  tb.innerHTML=list.map(c=>{
+    const ret=movs.filter(m=>m.t==='s'&&(m.colab===c.name||m.resp===c.name)).length;
+    return `<tr>
+      <td style="font-family:'Barlow Condensed',sans-serif;font-weight:600;color:var(--accent)">${c.mat||'—'}</td>
+      <td style="color:var(--text-primary);font-weight:500">${c.name}</td>
+      <td style="color:var(--text-secondary)">${c.cargo||'—'}</td>
+      <td style="color:var(--text-secondary)">${c.setor||'—'}</td>
+      <td style="color:#10b981;font-weight:700">${ret}</td>
+      <td><div style="display:flex;gap:5px">
+        <button class="icon-btn e" onclick="openColabModal('${c.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+        <button class="icon-btn d" onclick="delColab('${c.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+function delColab(id){confirm2('Excluir Colaborador','Confirmar exclusão?',()=>{db.sC(db.colab().filter(c=>c.id!==id));toast('Colaborador excluído','warning');renderColab()})}
+
+// ══════════════════════════════════════════
+// PDF
+// ══════════════════════════════════════════
+function genPDF(type){
+  if(!window.jspdf){toast('Biblioteca PDF não carregada. Verifique a conexão.','error');return}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const W=210;
+  const now=new Date().toLocaleString('pt-BR');
+
+  function addHeader(title,subtitle=''){
+    // Background
+    doc.setFillColor(6,15,28);
+    doc.rect(0,0,W,32,'F');
+    // Accent bar
+    doc.setFillColor(6,182,212);
+    doc.rect(0,0,5,32,'F');
+    // Logo text
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(18);
+    doc.setTextColor(255,255,255);
+    doc.text('ARACONTROL',10,13);
+    doc.setFontSize(7);
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(6,182,212);
+    doc.text('SISTEMA DE CONTROLE DE ESTOQUE INDUSTRIAL',10,19);
+    // Report title
+    doc.setFontSize(10);
+    doc.setFont('helvetica','bold');
+    doc.setTextColor(255,255,255);
+    doc.text(title.toUpperCase(),10,27);
+    // Date
+    doc.setFontSize(7);
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(100,130,160);
+    doc.text('Gerado em: '+now,W-10,27,{align:'right'});
+    // Bottom line
+    doc.setDrawColor(6,182,212);
+    doc.setLineWidth(0.3);
+    doc.line(0,32,W,32);
+  }
+
+  const tblStyle={
+    headStyles:{fillColor:[11,24,41],textColor:[150,180,210],fontSize:7,fontStyle:'bold',lineColor:[26,48,80],lineWidth:0.2},
+    bodyStyles:{fontSize:7,textColor:[60,80,100],lineColor:[220,228,240],lineWidth:0.1},
+    alternateRowStyles:{fillColor:[245,248,255]},
+    margin:{top:38,left:10,right:10},
+    tableLineColor:[26,48,80],tableLineWidth:0.2,
+  };
+
+  if(type==='full'){
+    addHeader('Relatório de Estoque Geral');
+    const prods=db.prods();
+    doc.autoTable({
+      head:[['Código','Nome','Categoria','Quantidade','Mínimo','Unidade','Localização','Status']],
+      body:prods.map(p=>{const s=pStatus(p);return[p.code,p.name,p.cat||'—',p.qty,p.min,p.unit,p.loc||'—',s.t]}),
+      ...tblStyle,
+      didParseCell:d=>{
+        if(d.section==='body'&&d.column.index===7){
+          const v=d.cell.text[0];
+          d.cell.styles.fontStyle='bold';
+          d.cell.styles.textColor=v==='Normal'?[5,150,105]:v==='Baixo'?[217,119,6]:[220,38,38];
+        }
+        if(d.section==='body'&&d.column.index===3){
+          const row=d.row.raw;
+          const qty=parseFloat(row[3]);const min=parseFloat(row[4]);
+          d.cell.styles.fontStyle='bold';
+          d.cell.styles.textColor=qty<=0?[220,38,38]:min>0&&qty<=min?[217,119,6]:[5,150,105];
+        }
+      }
+    });
+  } else if(type==='critical'){
+    addHeader('Estoque Crítico','Produtos abaixo do mínimo ou zerados');
+    const prods=db.prods().filter(p=>p.qty<=p.min);
+    if(!prods.length){
+      doc.setFontSize(10);doc.setTextColor(80,120,160);
+      doc.text('Nenhum produto com estoque crítico no momento.',14,45);
+    } else {
+      doc.autoTable({
+        head:[['Código','Nome','Categoria','Qtd Atual','Mínimo','Unidade','Localização','Status']],
+        body:prods.map(p=>{const s=pStatus(p);return[p.code,p.name,p.cat||'—',p.qty,p.min,p.unit,p.loc||'—',s.t]}),
+        ...tblStyle,
+        didParseCell:d=>{if(d.section==='body'&&d.column.index===7){d.cell.styles.fontStyle='bold';d.cell.styles.textColor=d.cell.text[0]==='Crítico'?[220,38,38]:[217,119,6]}}
+      });
+    }
+  } else if(type==='history'){
+    addHeader('Histórico de Movimentações');
+    const movs=db.movs().slice().reverse();
+    doc.autoTable({
+      head:[['Data/Hora','Tipo','Produto','Qtd','Responsável','Obra','Observação']],
+      body:movs.map(m=>[fmtDT(m.d),m.t==='e'?'ENTRADA':'SAÍDA',m.pn,m.q,m.resp||m.colab||'—',m.ob||'—',m.obs||'—']),
+      ...tblStyle,
+      didParseCell:d=>{if(d.section==='body'&&d.column.index===1){d.cell.styles.fontStyle='bold';d.cell.styles.textColor=d.cell.text[0]==='ENTRADA'?[5,150,105]:[220,38,38]}}
+    });
+  } else if(type==='inventory'){
+    addHeader('Inventário Completo');
+    const prods=db.prods();const movs=db.movs();
+    doc.autoTable({
+      head:[['Código','Nome','Cat','Qtd','Mín','Un','Entradas','Saídas','Status']],
+      body:prods.map(p=>{
+        const ent=movs.filter(m=>m.t==='e'&&m.pid===p.id).reduce((a,m)=>a+m.q,0);
+        const sai=movs.filter(m=>m.t==='s'&&m.pid===p.id).reduce((a,m)=>a+m.q,0);
+        const s=pStatus(p);
+        return[p.code,p.name,p.cat||'—',p.qty,p.min,p.unit,ent,sai,s.t];
+      }),
+      ...tblStyle
+    });
+  } else if(type==='obras'){
+    addHeader('Saídas por Obra');
+    const movs=db.movs().filter(m=>m.t==='s'&&m.ob);
+    const map={};
+    movs.forEach(m=>{if(!map[m.ob])map[m.ob]=[];map[m.ob].push(m)});
+    let y=38;
+    Object.entries(map).forEach(([obra,ms])=>{
+      if(y>250){doc.addPage();y=14;}
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(6,182,212);
+      doc.text('▸ '+obra,10,y);
+      doc.autoTable({
+        head:[['Data','Produto','Qtd','Colaborador','Obs']],
+        body:ms.map(m=>[fmtDT(m.d),m.pn,m.q,m.colab||m.resp||'—',m.obs||'—']),
+        ...tblStyle,startY:y+4,margin:{left:10,right:10}
+      });
+      y=doc.lastAutoTable.finalY+10;
+    });
+    if(!Object.keys(map).length){doc.setFontSize(10);doc.setTextColor(80);doc.text('Nenhuma saída por obra registrada.',14,45);}
+  } else if(type==='entries'){
+    addHeader('Relatório de Entradas');
+    const movs=db.movs().filter(m=>m.t==='e').slice().reverse();
+    doc.autoTable({
+      head:[['Data/Hora','Produto','Quantidade','Responsável','Observação']],
+      body:movs.map(m=>[fmtDT(m.d),m.pn,m.q,m.resp||'—',m.obs||'—']),
+      ...tblStyle
+    });
+  }
+
+  // Footer on all pages
+  const pages=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pages;i++){
+    doc.setPage(i);
+    doc.setDrawColor(26,48,80);doc.setLineWidth(0.2);
+    doc.line(10,286,W-10,286);
+    doc.setFontSize(6.5);doc.setTextColor(80,110,140);doc.setFont('helvetica','normal');
+    doc.text('ARACONTROL – Sistema de Controle de Estoque Industrial',10,290);
+    doc.text(`Página ${i} de ${pages}`,W-10,290,{align:'right'});
+  }
+  doc.save(`aracontrol-${type}-${Date.now()}.pdf`);
+  toast('PDF gerado com sucesso!','success');
+}
+
+// ══════════════════════════════════════════
+// EXCEL
+// ══════════════════════════════════════════
+function genExcel(type){
+  if(!window.XLSX){toast('Biblioteca Excel não carregada. Verifique a conexão.','error');return}
+  const wb=XLSX.utils.book_new();
+  const hStyle=s=>s; // SheetJS CE doesn't support cell styles, just data
+
+  if(type==='products'){
+    const prods=db.prods();
+    const data=[
+      ['ARACONTROL – Produtos'],
+      ['Gerado em:', new Date().toLocaleString('pt-BR')],
+      [],
+      ['Código','Nome','Categoria','Quantidade','Mínimo','Unidade','Localização','Status','Observação'],
+      ...prods.map(p=>{const s=pStatus(p);return[p.code,p.name,p.cat||'',p.qty,p.min,p.unit,p.loc||'',s.t,p.obs||'']})
+    ];
+    const ws=XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=[{wch:12},{wch:30},{wch:16},{wch:12},{wch:10},{wch:8},{wch:20},{wch:10},{wch:30}];
+    XLSX.utils.book_append_sheet(wb,ws,'Produtos');
+  } else if(type==='movements'){
+    const movs=db.movs().slice().reverse();
+    const data=[
+      ['ARACONTROL – Movimentações'],
+      ['Gerado em:', new Date().toLocaleString('pt-BR')],
+      [],
+      ['Data/Hora','Tipo','Produto','Quantidade','Responsável','Obra','Observação'],
+      ...movs.map(m=>[fmtDT(m.d),m.t==='e'?'ENTRADA':'SAÍDA',m.pn,m.q,m.resp||m.colab||'',m.ob||'',m.obs||''])
+    ];
+    const ws=XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=[{wch:18},{wch:10},{wch:30},{wch:10},{wch:20},{wch:24},{wch:30}];
+    XLSX.utils.book_append_sheet(wb,ws,'Movimentações');
+  } else if(type==='full'){
+    // Aba Produtos
+    const prods=db.prods();const movs=db.movs();
+    const wsP=XLSX.utils.aoa_to_sheet([
+      ['Código','Nome','Categoria','Quantidade','Mínimo','Unidade','Localização','Status'],
+      ...prods.map(p=>{const s=pStatus(p);return[p.code,p.name,p.cat||'',p.qty,p.min,p.unit,p.loc||'',s.t]})
+    ]);
+    wsP['!cols']=[{wch:12},{wch:30},{wch:16},{wch:12},{wch:10},{wch:8},{wch:20},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,wsP,'Produtos');
+
+    // Aba Movimentações
+    const wsM=XLSX.utils.aoa_to_sheet([
+      ['Data/Hora','Tipo','Produto','Quantidade','Responsável','Obra','Obs'],
+      ...movs.slice().reverse().map(m=>[fmtDT(m.d),m.t==='e'?'ENTRADA':'SAÍDA',m.pn,m.q,m.resp||m.colab||'',m.ob||'',m.obs||''])
+    ]);
+    wsM['!cols']=[{wch:18},{wch:10},{wch:30},{wch:10},{wch:20},{wch:24},{wch:20}];
+    XLSX.utils.book_append_sheet(wb,wsM,'Movimentações');
+
+    // Aba Obras
+    const obras=db.obras();
+    const wsO=XLSX.utils.aoa_to_sheet([
+      ['Código','Nome','Responsável','Status'],
+      ...obras.map(o=>[o.code||'',o.name,o.resp||'',o.status||'ativa'])
+    ]);
+    XLSX.utils.book_append_sheet(wb,wsO,'Obras');
+
+    // Aba Colaboradores
+    const colab=db.colab();
+    const wsC=XLSX.utils.aoa_to_sheet([
+      ['Matrícula','Nome','Cargo','Setor'],
+      ...colab.map(c=>[c.mat||'',c.name,c.cargo||'',c.setor||''])
+    ]);
+    XLSX.utils.book_append_sheet(wb,wsC,'Colaboradores');
+  }
+
+  XLSX.writeFile(wb,`aracontrol-${type}-${Date.now()}.xlsx`);
+  toast('Planilha Excel gerada com sucesso!','success');
+}
+
+// ══════════════════════════════════════════
+// JSON EXPORT / IMPORT
+// ══════════════════════════════════════════
+function exportJSON(){
+  const data={
+    version:'2.0',
+    exportedAt:new Date().toISOString(),
+    products:db.prods(),
+    movements:db.movs(),
+    obras:db.obras(),
+    colaboradores:db.colab()
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`aracontrol-backup-${Date.now()}.json`;
+  a.click();
+  toast('Backup JSON exportado com sucesso!','success');
+}
+function importJSON(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(!d.products&&!d.movements){toast('Arquivo JSON inválido ou formato não reconhecido','error');return}
+      confirm2('Importar Dados','Isso substituirá TODOS os dados atuais pelo arquivo selecionado. Confirmar?',()=>{
+        if(d.products)db.sP(d.products);
+        if(d.movements)db.sM(d.movements);
+        if(d.obras)db.sO(d.obras);
+        if(d.colaboradores)db.sC(d.colaboradores);
+        toast('Dados importados com sucesso!','success');
+        renderDash();updBadge();
+      });
+    }catch(err){toast('Erro ao ler arquivo: '+err.message,'error')}
+  };
+  r.readAsText(file);
+  e.target.value='';
+}
+
+// ══════════════════════════════════════════
+// XML EXPORT
+// ══════════════════════════════════════════
+function exportXML(){
+  const prods=db.prods(),movs=db.movs(),obras=db.obras(),colab=db.colab();
+  let x='<?xml version="1.0" encoding="UTF-8"?>\n<aracontrol version="2.0">\n';
+  x+=`  <exportedAt>${new Date().toISOString()}</exportedAt>\n`;
+  x+='  <products>\n';
+  prods.forEach(p=>{x+=`    <product id="${esc(p.id)}"><code>${esc(p.code)}</code><name>${esc(p.name)}</name><category>${esc(p.cat||'')}</category><qty>${p.qty}</qty><min>${p.min}</min><unit>${esc(p.unit)}</unit><location>${esc(p.loc||'')}</location><obs>${esc(p.obs||'')}</obs></product>\n`});
+  x+='  </products>\n  <movements>\n';
+  movs.forEach(m=>{x+=`    <movement id="${esc(m.id)}"><type>${m.t==='e'?'ENTRADA':'SAIDA'}</type><product>${esc(m.pn)}</product><qty>${m.q}</qty><datetime>${esc(m.d||'')}</datetime><resp>${esc(m.resp||m.colab||'')}</resp><obra>${esc(m.ob||'')}</obra><obs>${esc(m.obs||'')}</obs></movement>\n`});
+  x+='  </movements>\n  <obras>\n';
+  obras.forEach(o=>{x+=`    <obra id="${esc(o.id)}"><code>${esc(o.code||'')}</code><name>${esc(o.name)}</name><status>${esc(o.status||'')}</status><resp>${esc(o.resp||'')}</resp></obra>\n`});
+  x+='  </obras>\n  <colaboradores>\n';
+  colab.forEach(c=>{x+=`    <colaborador id="${esc(c.id)}"><matricula>${esc(c.mat||'')}</matricula><name>${esc(c.name)}</name><cargo>${esc(c.cargo||'')}</cargo><setor>${esc(c.setor||'')}</setor></colaborador>\n`});
+  x+='  </colaboradores>\n</aracontrol>';
+  const blob=new Blob([x],{type:'application/xml'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`aracontrol-${Date.now()}.xml`;
+  a.click();
+  toast('Arquivo XML exportado!','success');
+}
+
+// ══════════════════════════════════════════
+// CLEAR ALL
+// ══════════════════════════════════════════
+function clearAll(){
+  confirm2('⚠️ Limpar Todos os Dados','Esta ação remove permanentemente produtos, histórico, obras e colaboradores. NÃO pode ser desfeita!',()=>{
+    db.sP([]);db.sM([]);db.sO([]);db.sC([]);
+    toast('Todos os dados foram removidos','warning');
+    renderDash();updBadge();
+  });
+}
+
+// ══════════════════════════════════════════
+// SEED DEMO DATA (apenas se banco vazio)
+// ══════════════════════════════════════════
+(function seed(){
+  if(db.prods().length>0)return;
+  const prods=[
+    {id:uid(),code:'EL-001',name:'Cabo PP 2x1,5mm',cat:'Elétrico',unit:'M',qty:250,min:100,loc:'Galpão A – Prateleira 1',obs:'Rolo de 100m'},
+    {id:uid(),code:'EL-002',name:'Disjuntor 20A Bipolar',cat:'Elétrico',unit:'UN',qty:8,min:10,loc:'Galpão A – Prateleira 2',obs:''},
+    {id:uid(),code:'EL-003',name:'Tomada 2P+T',cat:'Elétrico',unit:'UN',qty:3,min:15,loc:'Galpão A – Prateleira 3',obs:''},
+    {id:uid(),code:'HI-001',name:'Tubo PVC 50mm',cat:'Hidráulico',unit:'M',qty:0,min:20,loc:'Galpão B – Setor 3',obs:''},
+    {id:uid(),code:'HI-002',name:'Conexão Joelho 25mm',cat:'Hidráulico',unit:'UN',qty:45,min:20,loc:'Galpão B – Prateleira 1',obs:''},
+    {id:uid(),code:'CI-001',name:'Cimento CP-II 50kg',cat:'Civil',unit:'SC',qty:30,min:15,loc:'Pátio Externo',obs:'Manter em local seco'},
+    {id:uid(),code:'CI-002',name:'Areia Grossa',cat:'Civil',unit:'M³',qty:5,min:3,loc:'Pátio Externo',obs:''},
+    {id:uid(),code:'FE-001',name:'Chave de Fenda 1/4"',cat:'Ferramenta',unit:'UN',qty:12,min:5,loc:'Almoxarifado – Gaveta 2',obs:''},
+    {id:uid(),code:'ME-001',name:'Parafuso Sextavado M8',cat:'Mecânico',unit:'PC',qty:180,min:50,loc:'Almoxarifado – Gaveta 5',obs:''},
+  ];
+  db.sP(prods);
+
+  const obras=[
+    {id:uid(),code:'OBR-001',name:'Ampliação Galpão Norte',resp:'Eng. Carlos Souza',status:'ativa',obs:''},
+    {id:uid(),code:'OBR-002',name:'Reforma Escritório',resp:'Eng. Ana Lima',status:'ativa',obs:''},
+    {id:uid(),code:'OBR-003',name:'Instalação SPDA',resp:'Eng. Bruno Melo',status:'pausada',obs:''},
+  ];
+  db.sO(obras);
+
+  const colab=[
+    {id:uid(),mat:'COL-001',name:'João Ferreira',cargo:'Eletricista',setor:'Elétrica'},
+    {id:uid(),mat:'COL-002',name:'Pedro Santos',cargo:'Pedreiro',setor:'Civil'},
+    {id:uid(),mat:'COL-003',name:'Maria Oliveira',cargo:'Almoxarife',setor:'Estoque'},
+  ];
+  db.sC(colab);
+
+  function dAgo(n,h=8,min=0){const d=new Date();d.setDate(d.getDate()-n);d.setHours(h,min);return d.toISOString()}
+  const movs=[];
+  const [p0,p1,p2,p3,p4,p5,p6,p7,p8]=prods;
+  movs.push({id:uid(),t:'e',pid:p0.id,pn:p0.name,q:500,d:dAgo(22,8,30),resp:'Maria Oliveira',obs:'Compra NF 001/25'});
+  movs.push({id:uid(),t:'e',pid:p1.id,pn:p1.name,q:20,d:dAgo(20,9),resp:'Maria Oliveira',obs:''});
+  movs.push({id:uid(),t:'e',pid:p5.id,pn:p5.name,q:40,d:dAgo(18,14),resp:'Pedro Santos',obs:'NF 022/25'});
+  movs.push({id:uid(),t:'e',pid:p4.id,pn:p4.name,q:50,d:dAgo(15,10),resp:'Maria Oliveira',obs:''});
+  movs.push({id:uid(),t:'e',pid:p8.id,pn:p8.name,q:200,d:dAgo(12,9),resp:'Maria Oliveira',obs:''});
+  movs.push({id:uid(),t:'s',pid:p0.id,pn:p0.name,q:150,d:dAgo(14,11),colab:'João Ferreira',ob:'Ampliação Galpão Norte',resp:'João Ferreira',obs:''});
+  movs.push({id:uid(),t:'s',pid:p0.id,pn:p0.name,q:100,d:dAgo(10,14),colab:'João Ferreira',ob:'Instalação SPDA',resp:'João Ferreira',obs:'Quadro QD-02'});
+  movs.push({id:uid(),t:'s',pid:p1.id,pn:p1.name,q:12,d:dAgo(8,9,30),colab:'João Ferreira',ob:'Reforma Escritório',resp:'João Ferreira',obs:'Quadro QD-01'});
+  movs.push({id:uid(),t:'s',pid:p5.id,pn:p5.name,q:10,d:dAgo(6,8),colab:'Pedro Santos',ob:'Ampliação Galpão Norte',resp:'Pedro Santos',obs:''});
+  movs.push({id:uid(),t:'s',pid:p7.id,pn:p7.name,q:3,d:dAgo(3,15),colab:'João Ferreira',ob:'Reforma Escritório',resp:'João Ferreira',obs:''});
+  movs.push({id:uid(),t:'s',pid:p4.id,pn:p4.name,q:5,d:dAgo(2,10),colab:'Pedro Santos',ob:'Ampliação Galpão Norte',resp:'Pedro Santos',obs:''});
+  movs.push({id:uid(),t:'s',pid:p2.id,pn:p2.name,q:12,d:dAgo(1,13),colab:'João Ferreira',ob:'Reforma Escritório',resp:'João Ferreira',obs:'Sala reunião'});
+  movs.push({id:uid(),t:'e',pid:p2.id,pn:p2.name,q:5,d:dAgo(0,9),resp:'Maria Oliveira',obs:'Reposição parcial'});
+  db.sM(movs);
+})();
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+renderDash();
+updBadge();
+</script>
+</body>
+</html>
